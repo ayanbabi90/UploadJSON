@@ -1,0 +1,31 @@
+{
+    "App_Screens": [
+        {
+            "Order": 1,
+            "Id": "home",
+            "Name": "Home",
+            "HeaderImageId": "hot_air_balloon",
+            "BackgroundColor": "red",
+            "IsCollapsed": true,
+        },
+        {
+            "Order": 2,
+            "Id": "music",
+            "Name": "Music",
+            "HeaderImageId": "a_men_hd_wallpapers",
+            "BackgroundImageId": "hot_air_balloon",
+            "BackgroundColor": "red",
+            "IsCollapsed": true,
+        }
+    ],
+    "Header_Images": [
+        {
+            "Order": 32,
+            "Id": "hot_air_balloon",
+            "Name": "hot air balloon",
+            "FilePath": "sleepwell/images/header/hot_air_balloon_aurora_borealis_scenery_5k.jpg",
+            "Type": "JPG",
+            "ImageCategory": "header"
+        }
+    ]
+}
