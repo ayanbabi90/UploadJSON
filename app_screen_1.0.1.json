@@ -16,7 +16,7 @@
          "HeaderImageId":"Ocean_Storm_Night_List_Sz",
          "BackgroundImageId":"hot_air_balloon",
          "BackgroundColor":"red",
-         "IsCollapsed":true
+         "IsCollapsed":false
       },
       {
          "Order":3,
