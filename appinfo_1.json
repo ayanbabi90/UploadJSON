@@ -1,0 +1,74 @@
+{
+    "currentVersion": {
+        "version": "1.0.1",
+        "contentUrl": "sleepwell_data_1_0_1.json",
+        "changeDescription": "Player optimized",
+        "requireUpdateForVersions": [
+            "1.0.0"
+        ],
+        "alertUpdateForVersions": [
+            "1.0.0",
+            "0.9.0"
+        ],
+        "deletedItems": {
+            "soundFiles": [
+                "ocean_waves_1",
+                "ocean_waves_2"
+            ]
+        }
+    },
+    "betaVersion": {
+        "version": "1.1.4",
+        "contentUrl": "attenta_8_0_8.json",
+        "jsonData": [
+            {
+                "contentUrl": "attenta_8_0_8.json",
+                "changeDescription":"latest",
+            },
+            {
+                "contentUrl": "attenta_8_0_7.json",
+                "changeDescription":"latest",
+            },
+            {
+                "contentUrl": "attenta_8_0_6.json",
+                "changeDescription":"latest",
+            },
+            {
+                "contentUrl": "attenta_8_0_5.json",
+                "changeDescription":"latest",
+            }
+        ],
+        "requireUpdateForVersions": [
+            "0.8.0"
+        ],
+        "alertUpdateForVersions": [
+            "1.0.0",
+            "0.9.1",
+            "0.9.0"
+        ],
+        "deletedItems": {
+            "soundFiles": [
+                "ocean_waves_1",
+                "ocean_waves_2"
+            ]
+        },
+        "appScreenContentUrl": "Test_1_0_0.json"
+    },
+    "previousVersions": [
+        {
+            "version": "1.0.0",
+            "contentUrl": "sleepwell_data.json",
+            "changeDescription": "First release"
+        },
+        {
+            "version": "0.9.1",
+            "contentUrl": "sleepwell_data_0_9_1.json",
+            "changeDescription": "Play Options feature enhanced"
+        },
+        {
+            "version": "0.9.0",
+            "contentUrl": "sleepwell_data_0_9_0.json",
+            "changeDescription": "Play Chapter introduced"
+        }
+    ]
+}
