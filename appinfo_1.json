@@ -23,19 +23,19 @@
         "jsonData": [
             {
                 "contentUrl": "attenta_8_0_8.json",
-                "changeDescription":"latest",
+                "changeDescription":"latest is contentUrl: attenta_8_0_8.json. This is the new json...",
             },
             {
                 "contentUrl": "attenta_8_0_7.json",
-                "changeDescription":"latest",
+                "changeDescription":"Header image changed...",
             },
             {
                 "contentUrl": "attenta_8_0_6.json",
-                "changeDescription":"latest",
+                "changeDescription":"",
             },
             {
                 "contentUrl": "attenta_8_0_5.json",
-                "changeDescription":"latest",
+                "changeDescription":"Content changes...",
             }
         ],
         "requireUpdateForVersions": [
