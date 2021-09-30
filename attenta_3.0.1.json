@@ -1,5 +1,4 @@
 {
-  "data": {
     "Courses": [
       {
         "Id": "Around_the_World",
@@ -1125,5 +1124,4 @@
         "ImageCategory": "mixer"
       }
     ]
-  }
 }
