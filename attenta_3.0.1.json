@@ -229,7 +229,7 @@
             "Id": "CA_Rain_Cars_Street",
             "Name": "CA Rain Cars Street",
             "SessionType": "sleep",
-            "Image": "Fast_Train",
+            "Image": "Moon_Rock",
             "Sound1": "CA_Rain_Cars_Street",
             "Sound2": "",
             "Sound1Volume": 10,
@@ -295,7 +295,7 @@
             "Id": "so_in_love_with_you_jake_etheridge_mb_licensed",
             "Name": "so in love with you jake etheridge mb licensed",
             "SessionType": "sleep",
-            "Image": "Waves_Winds_List_Sz",
+            "Image": "City_Dome_Wall_Nite",
             "Sound1": "so_in_love_with_you_jake_etheridge_mb_licensed",
             "Sound2": "",
             "Sound1Volume": 10,
@@ -493,7 +493,7 @@
             "Id": "Calm_Story",
             "Name": "Calm Story",
             "SessionType": "sleep",
-            "Image": "Waves_Winds_List_Sz",
+            "Image": "City_Dome_Wall_Nite",
             "Sound1": "Calm_Story",
             "Sound2": "",
             "Sound1Volume": 10,
@@ -1222,44 +1222,6 @@
             "Similar": "cali, after_midnight_in_new_york, this_morning"
         },
         {
-            "Order": 42,
-            "Id": "Rain_Distant_Storm",
-            "Name": "Rain Distant Storm",
-            "SessionType": "meditation",
-            "Image": "Rain_Nite",
-            "Sound1": "Rain_Distant_Storm",
-            "Sound1Volume": 10,
-            "Duration": 11,
-            "Type": "meditation",
-            "Is_Free": "No",
-            "Is_New": "Yes",
-            "Hide_From_Main_List": "No",
-            "Teacher": "Richard Alpert",
-            "Description": "midnight meditation",
-            "Tags": "mediation",
-            "Category": "peace",
-            "Similar": ""
-        },
-        {
-            "Order": 18,
-            "Id": "Joshua_Tree_Meditation",
-            "Name": "Joshua Tree Meditation",
-            "SessionType": "meditation",
-            "Image": "Waves_Winds_List_Sz",
-            "Sound1": "Joshua_Tree_Meditation",
-            "Sound1Volume": 10,
-            "Duration": 10,
-            "Type": "meditation",
-            "Is_Free": "No",
-            "Is_New": "Yes",
-            "Hide_From_Main_List": "No",
-            "Teacher": "Richard Alpert",
-            "Description": "",
-            "Tags": "mediation",
-            "Category": "calm",
-            "Similar": "Guided_Meditation_Female"
-        },
-        {
             "Order": 56,
             "Id": "hip_hop_lo_fi",
             "Name": "hip hop lo fi",
@@ -1333,14 +1295,14 @@
             "Description": "",
             "Tags": "mediation",
             "Category": "calm, peace",
-            "Similar": "Rain_Distant_Storm, Rain_On_Tin_Roof"
+            "Similar": "Rain_On_Tin_Roof"
         },
         {
             "Order": 45,
             "Id": "Waves_And_WInd",
             "Name": "Waves And WInd",
             "SessionType": "meditation",
-            "Image": "Waves_Winds_List_Sz",
+            "Image": "City_Dome_Wall_Nite",
             "Sound1": "Waves_And_WInd",
             "Sound1Volume": 10,
             "Duration": 8,
@@ -1416,7 +1378,7 @@
             "Id": "Sloshing_Waves",
             "Name": "Sloshing Waves",
             "SessionType": "meditation",
-            "Image": "Waves_Winds_List_Sz",
+            "Image": "City_Dome_Wall_Nite",
             "Sound1": "Sloshing_Waves",
             "Sound1Volume": 10,
             "Duration": 10,
@@ -1466,7 +1428,7 @@
             "Description": "morning meditation",
             "Tags": "mediation",
             "Category": "calm, fresh",
-            "Similar": "Costa_Rica_Eco_Meditation, Guided_Meditation_Female, Joshua_Tree_Meditation"
+            "Similar": "Costa_Rica_Eco_Meditation, Guided_Meditation_Female"
         },
         {
             "Order": 52,
@@ -1568,7 +1530,7 @@
             "Id": "Slow_Train",
             "Name": "Slow Train",
             "SessionType": "meditation",
-            "Image": "Fast_Train",
+            "Image": "Moon_Rock",
             "Sound1": "Slow_Train",
             "Sound1Volume": 10,
             "Duration": 16,
@@ -2023,6 +1985,16 @@
             "IsMixable": "No"
         },
         {
+          "Order": 3,
+          "Id": "moonlight_mastered",
+          "Name": "moonlight mastered",
+          "FilePath": "sleepwell/sounds/meditation/moonlight_mastered.mp3",
+          "SoundType": "meditation",
+          "Duration": 164.624,
+          "SoundCategory": "meditation",
+          "IsMixable": "No"
+        },
+        {
           "Order": 28,
           "Id": "the_hill",
           "Name": "the hill",
@@ -2030,6 +2002,16 @@
           "SoundType": "yoga",
           "Duration": 759.353,
           "SoundCategory": "The Hill",
+          "IsMixable": "No"
+        },
+        {
+          "Order": 16,
+          "Id": "hip_hop_lo_fi",
+          "Name": "hip hop lo fi",
+          "FilePath": "sleepwell/sounds/meditation/hip_hop_lo_fi.mp3",
+          "SoundType": "meditation",
+          "Duration": 150.674,
+          "SoundCategory": "meditation",
           "IsMixable": "No"
         },
         {
@@ -2091,6 +2073,16 @@
             "Duration": 685.401,
             "SoundCategory": "yoga",
             "IsMixable": "No"
+        },
+        {
+          "Order": 14,
+          "Id": "mezhdunami_uncut_gems",
+          "Name": "mezhdunami uncut gems",
+          "FilePath": "sleepwell/sounds/meditation/mezhdunami_uncut_gems.mp3",
+          "SoundType": "meditation",
+          "Duration": 135.053,
+          "SoundCategory": "meditation",
+          "IsMixable": "No"
         },
         {
             "Order": 8,
