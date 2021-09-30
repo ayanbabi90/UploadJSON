@@ -72,7 +72,7 @@
             "Name": "Evening Meditation",
             "SessionType": "meditation",
             "Category": "calm",
-            "Image": "Beach_Mountain",
+            "Image": "English_Country_Manor",
             "Sound": "Costa_Rica_Eco_Meditation",
             "Teacher": "Richard Alpert",
             "Description": "evening meditation",
@@ -89,7 +89,7 @@
             "Name": "Afternoon meditation",
             "SessionType": "meditation",
             "Category": "peace, calm, fresh",
-            "Image": "Hawaii_Coast_List_Sz",
+            "Image": "English_Country_Manor",
             "Sound": "Costa_Rica_Eco_Meditation",
             "Teacher": "Richard Alpert",
             "Description": "Meditation is not about stopping thoughts, but recognizing that we are more than our thoughts and our feelings.",
@@ -2113,6 +2113,36 @@
             "ImageCategory": "profile"
         },
         {
+          "Order": 4,
+          "Id": "Moon_Palms_Hdr_2",
+          "Name": "Moon Palms Hdr 2",
+          "FilePath": "sleepwell/images/list/Moon_Palms_Hdr_2.jpg",
+          "Type": "JPG",
+          "ImageCategory": "list",
+          "PortraitFilePath": "sleepwell/images/portrait/Moon_Palms_Hdr_2_portrait.jpg",
+          "LandscapeFilePath": "sleepwell/images/landscape/Moon_Palms_Hdr_2_landscape.jpg"
+        },
+        {
+          "Order": 2,
+          "Id": "Aurora_Stair",
+          "Name": "Aurora Stair",
+          "FilePath": "sleepwell/images/list/Aurora_Stair.jpg",
+          "Type": "JPG",
+          "ImageCategory": "list",
+          "PortraitFilePath": "sleepwell/images/portrait/Aurora_Stair_portrait.jpg",
+          "LandscapeFilePath": "sleepwell/images/landscape/Aurora_Stair_landscape.jpg"
+        },
+        {
+          "Order": 5,
+          "Id": "Beach_Mountain",
+          "Name": "Beach Mountain",
+          "FilePath": "sleepwell/images/list/Beach_Mountain.jpg",
+          "Type": "JPG",
+          "ImageCategory": "list",
+          "PortraitFilePath": "sleepwell/images/portrait/Beach_Mountain_portrait.jpg",
+          "LandscapeFilePath": "sleepwell/images/landscape/Beach_Mountain_landscape.jpg"
+        },
+        {
             "Order": 40,
             "Id": "Ram_Dass_Richard_Alpert",
             "Name": "Richard Alpert",
@@ -2247,6 +2277,14 @@
             "ImageCategory": "list",
             "PortraitFilePath": "sleepwell/images/portrait/padmasana_portrait.jpg",
             "LandscapeFilePath": "sleepwell/images/landscape/padmasana_landscape.jpg"
+        },
+        {
+          "Order": 14,
+          "Id": "Rajasthan",
+          "Name": "Rajasthan",
+          "FilePath": "sleepwell/images/mixer/Rajasthan.jpg",
+          "Type": "JPG",
+          "ImageCategory": "mixer"
         },
         {
             "Order": 1,
