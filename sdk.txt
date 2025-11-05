@@ -1,0 +1,630 @@
+
+import Foundation
+import Foundation
+import UIKit // For device info
+
+    ///
+    /// EventLogger: The main public interface for logging events.
+    ///
+    /// This singleton class orchestrates event logging, persistence, and batch uploading.
+    ///
+    /// ## Usage:
+    ///
+    /// 1. **Configure on app launch (e.g., in AppDelegate):**
+    ///   ```swift
+    ///   EventLogger.shared.configure(
+    ///       apiEndpoint: URL(string: "[https://api.yourdomain.com/v1/logs](https://api.yourdomain.com/v1/logs)")!,
+    ///       mtopSecKey: "YOUR_SECRET_KEY"
+    ///   )
+    ///   ```
+    ///
+    /// 2. **Update user info on login/logout:**
+    ///   ```swift
+    ///   EventLogger.shared.setUserInfo(userId: 1234, orgId: 5678)
+    ///   ```
+    ///   ```swift
+    ///   EventLogger.shared.clearUserInfo() // On logout
+    ///   ```
+    ///
+    /// 3. **Log events anywhere in your app:**
+    ///   ```swift
+    ///   EventLogger.shared.logEvent(name: "course_viewed", type: "course")
+    ///   ```
+    ///
+    /// 4. **In your AppDelegate:**
+    ///   ```swift
+    ///   func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+    ///       if identifier == EventNetworkManager.backgroundSessionIdentifier {
+    ///           EventLogger.shared.setBackgroundSessionCompletionHandler(completionHandler)
+    ///       }
+    ///   }
+    ///   ```
+    ///
+public class EventLogger: NSObject, EventNetworkManagerDelegate {
+
+        // MARK: - Public Properties
+
+        /// Shared singleton instance
+    public static let shared = EventLogger()
+
+        // MARK: - Private Properties
+
+    private var isConfigured: Bool = false
+    private var apiEndpoint: URL!
+    private var mtopSecKey: String!
+
+        // User context
+    private var userId: Int?
+    private var orgId: Int?
+
+        // Services
+    private let eventStore = EventStore()
+    private let networkManager = EventNetworkManager() // Now instantiated
+    private let networkMonitor = NetworkMonitor()
+
+        // State & Concurrency
+    private let uploadQueue = DispatchQueue(label: "com.yourapp.eventLogger.uploadQueue", qos: .background)
+    private var isCurrentlyUploading = false
+
+        /// Timer is now only for *triggering* an upload, not for the upload itself.
+    private var uploadTimer: Timer?
+
+        /// Maximum number of events to send in a single batch.
+    private let batchSizeLimit = 50
+
+        /// How often to *check* if we should upload.
+    private let uploadInterval: TimeInterval = 300.0 // 5 minutes
+
+        // MARK: - Initialization
+
+    private override init() {
+        super.init()
+
+            // Set the logger as the network manager's delegate
+        self.networkManager.delegate = self
+
+            // Start monitoring network status
+        networkMonitor.startMonitoring()
+
+            // Add an observer to trigger uploads when network becomes available
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(onNetworkStatusChanged),
+            name: .networkStatusChanged,
+            object: nil
+        )
+
+            // Schedule a periodic upload check
+        setupUploadTimer()
+    }
+
+    deinit {
+        networkMonitor.stopMonitoring()
+        uploadTimer?.invalidate()
+        NotificationCenter.default.removeObserver(self)
+    }
+
+        // MARK: - Public Configuration
+
+        /// Configures the EventLogger with your API endpoint and keys.
+        /// Call this once on app launch.
+    public func configure(apiEndpoint: URL, mtopSecKey: String) {
+        self.apiEndpoint = apiEndpoint
+        self.mtopSecKey = mtopSecKey
+        self.isConfigured = true
+        print("EventLogger Configured.")
+
+            // Attempt an upload on configuration, in case we have pending events.
+        triggerBatchUpload()
+    }
+
+        /// Sets the user-specific identifiers. Call this on user login.
+    public func setUserInfo(userId: Int, orgId: Int) {
+        self.userId = userId
+        self.orgId = orgId
+        print("EventLogger UserInfo Set: userId \(userId)")
+            // Trigger an upload in case events were logged anonymously
+        triggerBatchUpload()
+    }
+
+        /// Clears user-specific identifiers. Call this on user logout.
+    public func clearUserInfo() {
+        self.userId = nil
+        self.orgId = nil
+        print("EventLogger UserInfo Cleared.")
+    }
+
+        /// Connects the AppDelegate's completion handler to the network manager.
+    public func setBackgroundSessionCompletionHandler(_ handler: @escaping () -> Void) {
+        networkManager.backgroundSessionCompletionHandler = handler
+    }
+
+        // MARK: - Public Event Logging
+
+        /// Logs a new event.
+        /// This method is lightweight and returns immediately.
+        /// - Parameters:
+        ///   - name: The name of the event (e.g., "new", "course_viewed").
+        ///   - type: The type of the event (e.g., "course").
+    public func logEvent(name: String, type: String) {
+        guard isConfigured else {
+            print("EventLogger Error: Must be configured before logging events.")
+            return
+        }
+
+        let event = Event(event_name: name, event_type: type)
+
+            // Persist the event in the background
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            guard let self = self else { return }
+
+            self.eventStore.saveEvent(event)
+            let currentCount = self.eventStore.getEventCount()
+            print("Event logged: \(name). Total pending: \(currentCount)")
+
+                // If we've hit our batch limit, trigger an upload immediately
+            if currentCount >= self.batchSizeLimit {
+                self.triggerBatchUpload()
+            }
+        }
+    }
+
+        // MARK: - Batch Upload Logic
+
+    @objc private func onNetworkStatusChanged() {
+        if networkMonitor.isOnline {
+            print("EventLogger: Network is back online. Triggering upload.")
+            triggerBatchUpload()
+        } else {
+            print("EventLogger: Network is offline.")
+        }
+    }
+
+    private func setupUploadTimer() {
+        uploadTimer?.invalidate()
+            // Use a main-thread timer to schedule the background work
+        DispatchQueue.main.async {
+            self.uploadTimer = Timer.scheduledTimer(
+                withTimeInterval: self.uploadInterval,
+                repeats: true
+            ) { [weak self] _ in
+                print("EventLogger: Periodic upload timer fired.")
+                self?.triggerBatchUpload()
+            }
+        }
+    }
+
+        /// Triggers a batch upload process on a dedicated background queue.
+    public func triggerBatchUpload() {
+        uploadQueue.async { [weak self] in
+            self?.performUpload()
+        }
+    }
+
+        /// The core upload logic. Runs on the `uploadQueue`.
+    private func performUpload() {
+            // Ensure all conditions are met for an upload
+        guard isConfigured else { return }
+
+            // This check is now just a safeguard.
+            // A background task might already be running.
+        guard !isCurrentlyUploading else {
+            print("EventLogger: Upload already in progress.")
+            return
+        }
+
+        guard networkMonitor.isOnline else {
+            print("EventLogger: Upload skipped, network is offline.")
+            return
+        }
+
+            // A user must be set to send logs
+        guard let userId = self.userId, let orgId = self.orgId else {
+            print("EventLogger: Upload skipped, user/org ID not set.")
+            return
+        }
+
+        let batch = eventStore.getBatch(limit: batchSizeLimit)
+
+        guard !batch.isEmpty else {
+                // print("EventLogger: No events to upload.")
+            return
+        }
+
+        print("EventLogger: Starting upload of \(batch.count) events...")
+        isCurrentlyUploading = true
+
+            // Construct the request payload
+        let requestPayload = EventBatchRequest(
+            mtop_sec_key: self.mtopSecKey,
+            user_id: userId,
+            org_id: orgId,
+            device_os: "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)",
+            device: UIDevice.current.model,
+            events: batch
+        )
+
+            // Send to network manager. This returns *immediately*.
+            // The result will be handled by the delegate methods.
+        networkManager.sendEvents(payload: requestPayload, to: apiEndpoint)
+
+            // We optimistically set this back to false.
+            // The background task is now the OS's responsibility.
+            // A more complex solution might use the delegate callbacks to manage this flag.
+        isCurrentlyUploading = false
+    }
+
+        // MARK: - EventNetworkManagerDelegate
+
+    func batchUploadDidSucceed(for events: [Event]) {
+        print("EventLogger: Received success delegate call for \(events.count) events.")
+            // This delegate method can be called on any thread.
+            // Dispatch to our store's queue for removal.
+        self.eventStore.removeEvents(events)
+
+            // Check if more events are pending and trigger another upload
+        uploadQueue.async {
+            if self.eventStore.getEventCount() > 0 {
+                print("EventLogger: More events pending. Triggering next batch.")
+                self.performUpload() // Chain the next upload
+            }
+        }
+    }
+
+    func batchUploadDidFail(for events: [Event], error: EventLoggerError) {
+        print("EventLogger: Received failure delegate call for \(events.count) events. Error: \(error)")
+            // On failure, do nothing. The events remain in the store for the next attempt.
+    }
+}
+
+
+import Foundation
+
+    // MARK: - API Request Structures
+
+    /// A single event to be logged.
+public struct Event: Codable, Hashable {
+    let event_name: String
+    let event_type: String
+}
+
+    /// The main request body sent to the API.
+struct EventBatchRequest: Codable {
+    let mtop_sec_key: String
+    let user_id: Int
+    let org_id: Int
+    let device_os: String
+    let device: String
+    let events: [Event]
+}
+
+    // MARK: - API Response Structures
+
+    /// The expected successful response from the API.
+struct SuccessResponse: Codable {
+    let message: String
+    let status: Int
+}
+
+    // MARK: - Custom Errors
+
+enum EventLoggerError: Error {
+    case apiError(message: String)
+    case networkError(Error)
+    case invalidResponse
+    case encodingFailed
+}
+
+import Foundation
+
+    ///
+    /// EventStore: Handles thread-safe persistence of `Event` objects to the device's file system.
+    ///
+    /// This class ensures that all file I/O is performed on a dedicated serial queue
+    /// to prevent race conditions.
+    ///
+class EventStore {
+
+        /// A dedicated serial queue for all file read/write operations.
+    private let persistenceQueue = DispatchQueue(label: "com.yourapp.eventStore.persistenceQueue")
+
+        /// The URL for the JSON file where events are stored.
+    private lazy var eventsFileURL: URL = {
+        let fileManager = FileManager.default
+            // Use Application Support directory, as it's not user-facing
+        let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let eventsDirectoryURL = appSupportURL.appendingPathComponent("EventLogger")
+
+            // Create the directory if it doesn't exist
+        if !fileManager.fileExists(atPath: eventsDirectoryURL.path) {
+            do {
+                try fileManager.createDirectory(at: eventsDirectoryURL, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                print("EventStore Error: Could not create directory at \(eventsDirectoryURL.path): \(error)")
+            }
+        }
+
+        return eventsDirectoryURL.appendingPathComponent("pendingEvents.json")
+    }()
+
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+
+        // MARK: - Public Methods
+
+        /// Saves a single event to the persistent store.
+        /// This operation is performed asynchronously on the persistence queue.
+    func saveEvent(_ event: Event) {
+        persistenceQueue.async {
+            var allEvents = self.loadPendingEvents()
+            allEvents.append(event)
+            self.saveEventsToFile(allEvents)
+        }
+    }
+
+        /// Returns the total count of pending events.
+        /// This operation is performed synchronously on the persistence queue.
+    func getEventCount() -> Int {
+        var count = 0
+        persistenceQueue.sync {
+            count = self.loadPendingEvents().count
+        }
+        return count
+    }
+
+        /// Retrieves a batch of events to be sent, up to a specified limit.
+        /// This does *not* remove the events from the store.
+        /// This operation is performed synchronously on the persistence queue.
+    func getBatch(limit: Int) -> [Event] {
+        var batch: [Event] = []
+        persistenceQueue.sync {
+            let allEvents = self.loadPendingEvents()
+            batch = Array(allEvents.prefix(limit))
+        }
+        return batch
+    }
+
+        /// Removes a specific batch of events from the store.
+        /// This is called *after* a successful network upload.
+        /// This operation is performed asynchronously on the persistence queue.
+    func removeEvents(_ eventsToRemove: [Event]) {
+        persistenceQueue.async {
+                // Use a Set for efficient removal
+            let eventsToRemoveSet = Set(eventsToRemove)
+            if eventsToRemoveSet.isEmpty { return }
+
+            var allEvents = self.loadPendingEvents()
+
+                // Filter out the events that were successfully sent
+            allEvents.removeAll { eventsToRemoveSet.contains($0) }
+
+            self.saveEventsToFile(allEvents)
+        }
+    }
+
+        // MARK: - Private Helpers (Must be called from persistenceQueue)
+
+        /// Loads all events from the JSON file.
+        /// **Warning:** Must only be called from within the `persistenceQueue`.
+    private func loadPendingEvents() -> [Event] {
+        do {
+            let data = try Data(contentsOf: eventsFileURL)
+            let events = try decoder.decode([Event].self, from: data)
+            return events
+        } catch {
+                // If file doesn't exist or is corrupt, return an empty array
+                // print("EventStore: Could not load events (\(error.localizedDescription)). Starting fresh.")
+            return []
+        }
+    }
+
+        /// Saves an array of events to the JSON file.
+        /// **Warning:** Must only be called from within the `persistenceQueue`.
+    private func saveEventsToFile(_ events: [Event]) {
+        do {
+            let data = try encoder.encode(events)
+            try data.write(to: eventsFileURL, options: .atomic)
+        } catch {
+            print("EventStore Error: Could not save events to file: \(error)")
+        }
+    }
+}
+
+import Foundation
+
+    /// Delegate protocol for the EventNetworkManager to report back task completion.
+protocol EventNetworkManagerDelegate: AnyObject {
+        /// Called when a batch of events is successfully uploaded.
+    func batchUploadDidSucceed(for events: [Event])
+        /// Called when a batch upload fails.
+    func batchUploadDidFail(for events: [Event], error: EventLoggerError)
+}
+
+    ///
+    /// EventNetworkManager: Handles the network call to send a batch of events.
+    ///
+    /// This class is now an NSObject to conform to URLSessionTaskDelegate
+    /// and manages a background URLSession.
+    ///
+class EventNetworkManager: NSObject, URLSessionTaskDelegate {
+
+        /// A unique identifier for our background session.
+    static let backgroundSessionIdentifier = "com.yourapp.eventLogger.backgroundSession"
+
+    weak var delegate: EventNetworkManagerDelegate?
+
+    private lazy var urlSession: URLSession = {
+        let config = URLSessionConfiguration.background(withIdentifier: Self.backgroundSessionIdentifier)
+        config.isDiscretionary = true // Let the OS optimize for performance vs. battery
+        config.sessionSendsLaunchEvents = true
+        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
+    }()
+
+        /// A thread-safe dictionary to map a task identifier to the batch of events and the temp file URL it represents.
+        /// [TaskIdentifier: (TempFileURL, EventsInBatch)]
+    private var tasks = [Int: (URL, [Event])]()
+    private let tasksQueue = DispatchQueue(label: "com.yourapp.eventNetworkManager.tasksQueue")
+
+        /// Stores the completion handler from the AppDelegate.
+    var backgroundSessionCompletionHandler: (() -> Void)?
+
+    override init() {
+        super.init()
+            // Calling this ensures the session is created and can find orphaned tasks from a previous app launch.
+        _ = self.urlSession
+        print("EventNetworkManager initialized for background tasks.")
+    }
+
+        /// Creates a temporary file on disk for the upload task.
+    private func createTempFile(for payload: EventBatchRequest) throws -> URL {
+        let data = try JSONEncoder().encode(payload)
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = UUID().uuidString + ".json"
+        let tempFileURL = tempDir.appendingPathComponent(fileName)
+
+        try data.write(to: tempFileURL, options: .atomic)
+        return tempFileURL
+    }
+
+        /// Sends a batch of events to the specified API endpoint using a background task.
+        /// This method returns immediately. Completion is handled by the delegate.
+    func sendEvents(payload: EventBatchRequest, to url: URL) {
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let tempFileURL: URL
+        do {
+            tempFileURL = try createTempFile(for: payload)
+        } catch {
+            print("EventNetworkManager Error: Failed to create temp file. \(error)")
+            self.delegate?.batchUploadDidFail(for: payload.events, error: .encodingFailed)
+            return
+        }
+
+            // Create an upload task from the file.
+        let task = urlSession.uploadTask(with: request, fromFile: tempFileURL)
+
+            // Store the task info
+        tasksQueue.sync {
+            tasks[task.taskIdentifier] = (tempFileURL, payload.events)
+        }
+
+        print("EventNetworkManager: Starting background upload task \(task.taskIdentifier) for \(payload.events.count) events.")
+        task.resume()
+    }
+
+        // MARK: - URLSessionTaskDelegate
+
+        /// This delegate method is called when a task completes, either successfully or with an error.
+        /// This WILL be called in the background.
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+
+            // Retrieve and remove the task info
+        let taskInfo = tasksQueue.sync {
+            tasks.removeValue(forKey: task.taskIdentifier)
+        }
+
+        guard let (tempFileURL, events) = taskInfo else {
+            print("EventNetworkManager Error: Completed task \(task.taskIdentifier) not in dictionary. This is unexpected.")
+            return
+        }
+
+            // Always clean up the temporary file
+        try? FileManager.default.removeItem(at: tempFileURL)
+
+            // Handle network error
+        if let error = error {
+            print("EventNetworkManager: Task \(task.taskIdentifier) failed with error: \(error.localizedDescription)")
+            self.delegate?.batchUploadDidFail(for: events, error: .networkError(error))
+            return
+        }
+
+            // Check HTTP response
+        guard let httpResponse = task.response as? HTTPURLResponse else {
+            print("EventNetworkManager: Task \(task.taskIdentifier) completed with invalid response.")
+            self.delegate?.batchUploadDidFail(for: events, error: .invalidResponse)
+            return
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            print("EventNetworkManager: Task \(task.taskIdentifier) completed with status \(httpResponse.statusCode).")
+            self.delegate?.batchUploadDidFail(for: events, error: .apiError(message: "Invalid status code: \(httpResponse.statusCode)"))
+            return
+        }
+
+            // ---
+            // Success!
+            // ---
+            // We don't check the response body here for background tasks,
+            // as we can't get it from `didCompleteWithError`. A 2xx status is our success signal.
+            // If you MUST parse the response, you need to implement `urlSession(_:dataTask:didReceive:data:)`.
+            // For a simple "log and forget" system, this is usually sufficient.
+
+        print("EventNetworkManager: Task \(task.taskIdentifier) completed successfully.")
+        self.delegate?.batchUploadDidSucceed(for: events)
+    }
+
+        // MARK: - URLSessionDelegate
+
+        /// This is called by the OS when all background tasks for this session are complete.
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        DispatchQueue.main.async { [weak self] in
+            print("EventNetworkManager: All background tasks finished.")
+            self?.backgroundSessionCompletionHandler?()
+            self?.backgroundSessionCompletionHandler = nil
+        }
+    }
+}
+
+
+import Foundation
+import Network
+
+    /// Notification posted when the network status changes.
+extension Notification.Name {
+    static let networkStatusChanged = Notification.Name("networkStatusChanged")
+}
+
+    ///
+    /// NetworkMonitor: A wrapper around `NWPathMonitor` to provide
+    /// a simple `isOnline` property and post a notification on change.
+    ///
+class NetworkMonitor {
+
+    private let monitor: NWPathMonitor
+    private let queue: DispatchQueue
+
+        /// `true` if the device has a viable network connection.
+    public private(set) var isOnline: Bool = false
+
+    init() {
+        self.monitor = NWPathMonitor()
+        self.queue = DispatchQueue(label: "com.yourapp.networkMonitorQueue")
+    }
+
+        /// Starts monitoring network path updates.
+    func startMonitoring() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            let newStatus = (path.status == .satisfied)
+
+            if self?.isOnline != newStatus {
+                self?.isOnline = newStatus
+
+                    // Post a notification so other parts of the app can react
+                NotificationCenter.default.post(
+                    name: .networkStatusChanged,
+                    object: nil,
+                    userInfo: ["isOnline": newStatus]
+                )
+            }
+        }
+        monitor.start(queue: queue)
+    }
+
+        /// Stops monitoring network path updates.
+    func stopMonitoring() {
+        monitor.cancel()
+    }
+}
