@@ -1,7 +1,46 @@
+//
+//  Test.swift
+//  Test
+//
+//  Created by ayan Chakraborty on 05/11/25.
+//
 
 import Foundation
 import Foundation
 import UIKit // For device info
+import BackgroundTasks
+import os
+
+// MARK: - Logging Helper
+
+enum LogCategory {
+    static let eventLogger = "EventLogger"
+    static let network = "Network"
+    static let store = "EventStore"
+    static let networkMonitor = "NetworkMonitor"
+}
+
+struct Log {
+    private static var subsystem: String { EventLogger.bundleBase }
+
+    static func info(_ message: String, category: String = LogCategory.eventLogger) {
+        if #available(iOS 14.0, *) {
+            let logger = Logger(subsystem: subsystem, category: category)
+            logger.info("\(message, privacy: .public)")
+        } else {
+            print("[INFO] [\(category)] \(message)")
+        }
+    }
+
+    static func error(_ message: String, category: String = LogCategory.eventLogger) {
+        if #available(iOS 14.0, *) {
+            let logger = Logger(subsystem: subsystem, category: category)
+            logger.error("\(message, privacy: .public)")
+        } else {
+            print("[ERROR] [\(category)] \(message)")
+        }
+    }
+}
 
     ///
     /// EventLogger: The main public interface for logging events.
@@ -63,17 +102,45 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
     private let networkMonitor = NetworkMonitor()
 
         // State & Concurrency
-    private let uploadQueue = DispatchQueue(label: "com.yourapp.eventLogger.uploadQueue", qos: .background)
+        private let uploadQueue = DispatchQueue(label: EventLogger.bundleBase + ".eventLogger.uploadQueue", qos: .background)
     private var isCurrentlyUploading = false
 
         /// Timer is now only for *triggering* an upload, not for the upload itself.
     private var uploadTimer: Timer?
 
         /// Maximum number of events to send in a single batch.
-    private let batchSizeLimit = 50
+    // Dynamic & adaptive batch sizing (configurable)
+    private var baseMinBatchSize = 50
+    private var baseMaxBatchSize = 60
+    private let initialMaxBatchSize = 60 // baseline for shrink logic
+    private var adaptiveAbsoluteMaxBatchSize = 200 // upper bound after growth
+    private var consecutiveSuccesses = 0
+    private let successThresholdForGrowth = 3
+    private let batchGrowthStep = 10
+    private let batchShrinkStep = 10
+    private var currentMinBatchSize: Int { baseMinBatchSize }
+    private var currentMaxBatchSize: Int { baseMaxBatchSize }
 
         /// How often to *check* if we should upload.
-    private let uploadInterval: TimeInterval = 300.0 // 5 minutes
+    private var uploadInterval: TimeInterval = 300.0 // 5 minutes (configurable)
+
+    // Retention / store size guard
+    private var maxStoreFileBytes: Int = 512 * 1024 // 512 KB default (configurable)
+
+    // Retry policy
+    private let maxRetryAttempts = 3
+    private let baseRetryDelay: TimeInterval = 5 // seconds, exponential backoff
+    private let retryStore = RetryStateStore() // persistent retry attempts
+
+    // Base bundle identifier fallback (single source of truth for IDs)
+    public static let bundleBase: String = Bundle.main.bundleIdentifier ?? "bundle.missing"
+    // BGTaskScheduler identifier (derived from base)
+    public static var backgroundProcessingTaskIdentifier: String = bundleBase + ".eventLogger.upload"
+
+#if canImport(BackgroundTasks)
+    @available(iOS 13.0, *)
+    private var currentBGProcessingTask: BGProcessingTask?
+#endif
 
         // MARK: - Initialization
 
@@ -94,8 +161,13 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
             object: nil
         )
 
-            // Schedule a periodic upload check
-        setupUploadTimer()
+            // Register and schedule background processing (iOS 13+). Fallback to timer otherwise.
+        if #available(iOS 13.0, *) {
+            registerBackgroundTasks()
+            scheduleBackgroundUpload()
+        } else {
+            setupUploadTimer()
+        }
     }
 
     deinit {
@@ -112,26 +184,63 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
         self.apiEndpoint = apiEndpoint
         self.mtopSecKey = mtopSecKey
         self.isConfigured = true
-        print("EventLogger Configured.")
+    Log.info("Configured.", category: LogCategory.eventLogger)
 
             // Attempt an upload on configuration, in case we have pending events.
         triggerBatchUpload()
+
+            // Ensure a background task is scheduled as a time trigger
+        if #available(iOS 13.0, *) {
+            scheduleBackgroundUpload()
+        }
     }
 
         /// Sets the user-specific identifiers. Call this on user login.
     public func setUserInfo(userId: Int, orgId: Int) {
         self.userId = userId
         self.orgId = orgId
-        print("EventLogger UserInfo Set: userId \(userId)")
+    Log.info("UserInfo Set: userId=\(userId)", category: LogCategory.eventLogger)
             // Trigger an upload in case events were logged anonymously
         triggerBatchUpload()
+
+            // Also schedule background upload to run soon
+        if #available(iOS 13.0, *) {
+            scheduleBackgroundUpload(earliestBeginDate: Date(timeIntervalSinceNow: 60))
+        }
     }
 
         /// Clears user-specific identifiers. Call this on user logout.
     public func clearUserInfo() {
         self.userId = nil
         self.orgId = nil
-        print("EventLogger UserInfo Cleared.")
+    Log.info("UserInfo Cleared.", category: LogCategory.eventLogger)
+    }
+
+        /// Updates dynamic upload-related configuration at runtime.
+        /// Any parameter left nil remains unchanged.
+    public func updateUploadConfiguration(
+        minBatchSize: Int? = nil,
+        maxBatchSize: Int? = nil,
+        uploadInterval: TimeInterval? = nil,
+        maxStoreFileBytes: Int? = nil,
+        adaptiveAbsoluteMax: Int? = nil
+    ) {
+        if let minBatchSize, minBatchSize > 0 { self.baseMinBatchSize = minBatchSize }
+        if let maxBatchSize, maxBatchSize >= self.baseMinBatchSize { self.baseMaxBatchSize = maxBatchSize }
+        if let adaptiveAbsoluteMax, adaptiveAbsoluteMax >= self.baseMaxBatchSize { self.adaptiveAbsoluteMaxBatchSize = adaptiveAbsoluteMax }
+        if let uploadInterval, uploadInterval >= 30 { // guard against too frequent
+            self.uploadInterval = uploadInterval
+            // Reschedule periodic mechanism
+            if #available(iOS 13.0, *) {
+                scheduleBackgroundUpload()
+            } else {
+                setupUploadTimer()
+            }
+        }
+        if let maxStoreFileBytes, maxStoreFileBytes > 1024 { // minimum 1KB
+            self.maxStoreFileBytes = maxStoreFileBytes
+        }
+        Log.info("Updated upload configuration: min=\(baseMinBatchSize), max=\(baseMaxBatchSize), interval=\(self.uploadInterval)s, storeLimit=\(self.maxStoreFileBytes) bytes, adaptiveMax=\(adaptiveAbsoluteMaxBatchSize)", category: LogCategory.eventLogger)
     }
 
         /// Connects the AppDelegate's completion handler to the network manager.
@@ -148,7 +257,7 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
         ///   - type: The type of the event (e.g., "course").
     public func logEvent(name: String, type: String) {
         guard isConfigured else {
-            print("EventLogger Error: Must be configured before logging events.")
+            Log.error("Must be configured before logging events.", category: LogCategory.eventLogger)
             return
         }
 
@@ -160,11 +269,15 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
 
             self.eventStore.saveEvent(event)
             let currentCount = self.eventStore.getEventCount()
-            print("Event logged: \(name). Total pending: \(currentCount)")
+            Log.info("Event logged: \(name). Total pending: \(currentCount)", category: LogCategory.eventLogger)
 
-                // If we've hit our batch limit, trigger an upload immediately
-            if currentCount >= self.batchSizeLimit {
+                // Size trigger: If we've hit the minimum batch threshold, trigger an upload immediately
+            if currentCount >= self.minBatchSize {
                 self.triggerBatchUpload()
+                if #available(iOS 13.0, *) {
+                        // Nudge the scheduler to wake us if we're in background
+                    self.scheduleBackgroundUpload(earliestBeginDate: Date(timeIntervalSinceNow: 60))
+                }
             }
         }
     }
@@ -173,10 +286,10 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
 
     @objc private func onNetworkStatusChanged() {
         if networkMonitor.isOnline {
-            print("EventLogger: Network is back online. Triggering upload.")
+            Log.info("Network is back online. Triggering upload.", category: LogCategory.eventLogger)
             triggerBatchUpload()
         } else {
-            print("EventLogger: Network is offline.")
+            Log.info("Network is offline.", category: LogCategory.eventLogger)
         }
     }
 
@@ -188,7 +301,7 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
                 withTimeInterval: self.uploadInterval,
                 repeats: true
             ) { [weak self] _ in
-                print("EventLogger: Periodic upload timer fired.")
+                Log.info("Periodic upload timer fired.", category: LogCategory.eventLogger)
                 self?.triggerBatchUpload()
             }
         }
@@ -201,6 +314,10 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
         }
     }
 
+        // Internal accessors for collaborators in this file (EventStore)
+    fileprivate func maxStoreFileBytesAccessor() -> Int { maxStoreFileBytes }
+    fileprivate func baseMinBatchSizeAccessor() -> Int { baseMinBatchSize }
+
         /// The core upload logic. Runs on the `uploadQueue`.
     private func performUpload() {
             // Ensure all conditions are met for an upload
@@ -209,71 +326,244 @@ public class EventLogger: NSObject, EventNetworkManagerDelegate {
             // This check is now just a safeguard.
             // A background task might already be running.
         guard !isCurrentlyUploading else {
-            print("EventLogger: Upload already in progress.")
+            Log.info("Upload already in progress.", category: LogCategory.eventLogger)
             return
         }
 
         guard networkMonitor.isOnline else {
-            print("EventLogger: Upload skipped, network is offline.")
+            Log.info("Upload skipped, network is offline.", category: LogCategory.eventLogger)
             return
         }
 
             // A user must be set to send logs
         guard let userId = self.userId, let orgId = self.orgId else {
-            print("EventLogger: Upload skipped, user/org ID not set.")
+            Log.info("Upload skipped, user/org ID not set.", category: LogCategory.eventLogger)
             return
         }
 
-        let batch = eventStore.getBatch(limit: batchSizeLimit)
+            // Determine dynamic batch size between 50–60, limited by pending count
+        let pendingCount = eventStore.getEventCount()
+        guard pendingCount > 0 else { return }
+
+    let upperBound = max(1, min(currentMaxBatchSize, pendingCount))
+    let lowerBound = min(currentMinBatchSize, upperBound)
+        let dynamicLimit = Int.random(in: lowerBound...upperBound)
+        let batch = eventStore.getBatch(limit: dynamicLimit)
 
         guard !batch.isEmpty else {
                 // print("EventLogger: No events to upload.")
             return
         }
 
-        print("EventLogger: Starting upload of \(batch.count) events...")
+    Log.info("Starting upload of \(batch.count) events...", category: LogCategory.eventLogger)
         isCurrentlyUploading = true
 
-            // Construct the request payload
+            // Kick off upload with retry management
+        sendBatch(batch, userId: userId, orgId: orgId)
+    }
+
+        /// Builds and sends a batch, tracking retry attempts by a stable batch key.
+    private func sendBatch(_ events: [Event], userId: Int, orgId: Int) {
+        guard !events.isEmpty else { return }
+
         let requestPayload = EventBatchRequest(
             mtop_sec_key: self.mtopSecKey,
             user_id: userId,
             org_id: orgId,
             device_os: "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)",
             device: UIDevice.current.model,
-            events: batch
+            events: events
         )
 
-            // Send to network manager. This returns *immediately*.
-            // The result will be handled by the delegate methods.
+        isCurrentlyUploading = true
         networkManager.sendEvents(payload: requestPayload, to: apiEndpoint)
+    }
 
-            // We optimistically set this back to false.
-            // The background task is now the OS's responsibility.
-            // A more complex solution might use the delegate callbacks to manage this flag.
-        isCurrentlyUploading = false
+        /// Computes a stable key for a batch to track retry counts.
+    private func batchKey(for events: [Event]) -> String {
+        var hasher = Hasher()
+        for ev in events { hasher.combine(ev) }
+        return String(hasher.finalize())
+    }
+
+        /// Handles retry with exponential backoff; gives up after maxRetryAttempts and defers to next schedule.
+    private func handleRetry(for events: [Event], lastError: EventLoggerError) {
+        let key = batchKey(for: events)
+        let attempts = retryStore.getAttempts(for: key)
+
+        guard attempts < maxRetryAttempts else {
+            Log.info("Max retry attempts reached for batch (\(events.count)). Deferring to next schedule.", category: LogCategory.eventLogger)
+            retryStore.clearAttempts(for: key)
+            isCurrentlyUploading = false
+            // Schedule next background attempt later
+            if #available(iOS 13.0, *) { scheduleBackgroundUpload() }
+            completeBGTaskIfIdle()
+            return
+        }
+
+        let delay = baseRetryDelay * pow(2, Double(attempts))
+        Log.info("Retrying batch (\(events.count)) in \(delay)s. Attempt \(attempts + 1)/\(maxRetryAttempts)", category: LogCategory.eventLogger)
+        retryStore.setAttempts(for: key, attempts: attempts + 1)
+
+        uploadQueue.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self else { return }
+            guard self.isConfigured, self.networkMonitor.isOnline, let userId = self.userId, let orgId = self.orgId else {
+                self.isCurrentlyUploading = false
+                self.completeBGTaskIfIdle()
+                return
+            }
+            self.sendBatch(events, userId: userId, orgId: orgId)
+        }
     }
 
         // MARK: - EventNetworkManagerDelegate
 
     func batchUploadDidSucceed(for events: [Event]) {
-        print("EventLogger: Received success delegate call for \(events.count) events.")
+        Log.info("Batch upload success for \(events.count) events.", category: LogCategory.eventLogger)
             // This delegate method can be called on any thread.
             // Dispatch to our store's queue for removal.
         self.eventStore.removeEvents(events)
 
             // Check if more events are pending and trigger another upload
-        uploadQueue.async {
+        uploadQueue.async { [weak self] in
+            guard let self = self else { return }
+            // Clear retry state for this batch if any
+            let key = self.batchKey(for: events)
+            self.retryStore.clearAttempts(for: key)
+
+            self.isCurrentlyUploading = false
+
+            // Adaptive growth logic
+            self.consecutiveSuccesses += 1
+            if self.consecutiveSuccesses >= self.successThresholdForGrowth && self.baseMaxBatchSize < self.adaptiveAbsoluteMaxBatchSize {
+                self.baseMaxBatchSize = min(self.adaptiveAbsoluteMaxBatchSize, self.baseMaxBatchSize + self.batchGrowthStep)
+                self.consecutiveSuccesses = 0
+                Log.info("Adaptive batch: increased max batch size to \(self.baseMaxBatchSize)", category: LogCategory.eventLogger)
+            }
+
             if self.eventStore.getEventCount() > 0 {
                 print("EventLogger: More events pending. Triggering next batch.")
                 self.performUpload() // Chain the next upload
+            } else {
+                self.completeBGTaskIfIdle()
             }
         }
     }
 
     func batchUploadDidFail(for events: [Event], error: EventLoggerError) {
-        print("EventLogger: Received failure delegate call for \(events.count) events. Error: \(error)")
+        Log.error("Batch upload failed for \(events.count) events. Error: \(error)", category: LogCategory.eventLogger)
             // On failure, do nothing. The events remain in the store for the next attempt.
+        // Adaptive shrink logic (only once per failure event)
+        if baseMaxBatchSize > initialMaxBatchSize {
+            baseMaxBatchSize = max(initialMaxBatchSize, baseMaxBatchSize - batchShrinkStep)
+            Log.info("Adaptive batch: decreased max batch size to \(baseMaxBatchSize)", category: LogCategory.eventLogger)
+        }
+        consecutiveSuccesses = 0
+        uploadQueue.async { [weak self] in
+            self?.handleRetry(for: events, lastError: error)
+        }
+    }
+
+#if canImport(BackgroundTasks)
+    // MARK: - BGTaskScheduler integration (iOS 13+)
+
+    @available(iOS 13.0, *)
+    private func registerBackgroundTasks() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.backgroundProcessingTaskIdentifier, using: nil) { [weak self] task in
+            guard let self = self, let processingTask = task as? BGProcessingTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            self.handleBackgroundProcessing(task: processingTask)
+        }
+    }
+
+    @available(iOS 13.0, *)
+    public func scheduleBackgroundUpload(earliestBeginDate: Date? = nil) {
+        let request = BGProcessingTaskRequest(identifier: Self.backgroundProcessingTaskIdentifier)
+        request.requiresNetworkConnectivity = true
+        request.requiresExternalPower = false
+        if let earliest = earliestBeginDate {
+            request.earliestBeginDate = earliest
+        } else {
+            // Add small jitter (+/- up to 10%) to avoid clustered wakeups across many installs
+            let jitterFactor = Double.random(in: 0.9...1.1)
+            request.earliestBeginDate = Date(timeIntervalSinceNow: uploadInterval * jitterFactor)
+        }
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            print("EventLogger: BGProcessingTask scheduled (earliest: \(request.earliestBeginDate?.description ?? "n/a")).")
+        } catch {
+            print("EventLogger Error: Failed to schedule BGProcessingTask: \(error)")
+        }
+    }
+
+    @available(iOS 13.0, *)
+    private func handleBackgroundProcessing(task: BGProcessingTask) {
+        print("EventLogger: BGProcessingTask started.")
+        currentBGProcessingTask = task
+        // Always schedule the next one
+        scheduleBackgroundUpload()
+
+        var expired = false
+        task.expirationHandler = { [weak self] in
+            expired = true
+            print("EventLogger: BGProcessingTask expired by system.")
+            self?.isCurrentlyUploading = false
+        }
+
+        // Start uploads; chain continues via delegate callbacks
+        triggerBatchUpload()
+
+        // Best-effort completion once idle
+        uploadQueue.async { [weak self] in
+            guard let self = self else { return }
+            // Poll a few times to detect idle state quickly
+            let checkInterval: TimeInterval = 2
+            let maxChecks = 5
+            var checks = 0
+            func checkAndComplete() {
+                guard checks < maxChecks else { return }
+                checks += 1
+                if expired {
+                    task.setTaskCompleted(success: false)
+                    self.currentBGProcessingTask = nil
+                    return
+                }
+                if !self.isCurrentlyUploading {
+                    let success = self.eventStore.getEventCount() == 0
+                    task.setTaskCompleted(success: success)
+                    self.currentBGProcessingTask = nil
+                } else {
+                    self.uploadQueue.asyncAfter(deadline: .now() + checkInterval) {
+                        checkAndComplete()
+                    }
+                }
+            }
+            checkAndComplete()
+        }
+    }
+
+    @available(iOS 13.0, *)
+    private func completeCurrentBGTask(success: Bool) {
+        if let task = currentBGProcessingTask {
+            print("EventLogger: Completing BGProcessingTask (success=\(success)).")
+            task.setTaskCompleted(success: success)
+            currentBGProcessingTask = nil
+        }
+    }
+#endif
+
+        /// Completes BG task if no upload in progress and no pending events.
+    private func completeBGTaskIfIdle() {
+#if canImport(BackgroundTasks)
+        if #available(iOS 13.0, *) {
+            if !isCurrentlyUploading {
+                let success = self.eventStore.getEventCount() == 0
+                completeCurrentBGTask(success: success)
+            }
+        }
+#endif
     }
 }
 
@@ -326,7 +616,7 @@ import Foundation
 class EventStore {
 
         /// A dedicated serial queue for all file read/write operations.
-    private let persistenceQueue = DispatchQueue(label: "com.yourapp.eventStore.persistenceQueue")
+    private let persistenceQueue = DispatchQueue(label: EventLogger.bundleBase + ".eventStore.persistenceQueue")
 
         /// The URL for the JSON file where events are stored.
     private lazy var eventsFileURL: URL = {
@@ -359,6 +649,7 @@ class EventStore {
             var allEvents = self.loadPendingEvents()
             allEvents.append(event)
             self.saveEventsToFile(allEvents)
+            self.enforceSizeLimitIfNeeded()
         }
     }
 
@@ -428,9 +719,89 @@ class EventStore {
             print("EventStore Error: Could not save events to file: \(error)")
         }
     }
+
+        /// Checks file size and trims oldest events if exceeding configured limit.
+    private func enforceSizeLimitIfNeeded() {
+        // Read size
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: eventsFileURL.path),
+              let fileSize = attributes[.size] as? NSNumber else { return }
+
+        let limitBytes = EventLogger.shared.maxStoreFileBytesAccessor()
+        guard fileSize.intValue > limitBytes else { return }
+
+        // Load, trim oldest 20% until under limit or until only min batch remains.
+        var events = loadPendingEvents()
+        let minimumKeep = EventLogger.shared.baseMinBatchSizeAccessor()
+        var trimmed = false
+        while events.count > minimumKeep && (try? Data(contentsOf: eventsFileURL))?.count ?? 0 > limitBytes {
+            let removeCount = max(1, events.count / 5)
+            events.removeFirst(removeCount)
+            saveEventsToFile(events)
+            trimmed = true
+        }
+        if trimmed {
+            Log.info("EventStore trimmed old events to enforce size limit (limit=\(limitBytes) bytes, remaining=\(events.count)).", category: LogCategory.store)
+        }
+    }
 }
 
 import Foundation
+
+// MARK: - Retry State Store (persistent)
+
+/// Persists retry attempts per batch key to disk so attempts survive restarts.
+final class RetryStateStore {
+    private let queue = DispatchQueue(label: EventLogger.bundleBase + ".eventLogger.retryStateQueue")
+    private var cache: [String: Int] = [:]
+
+    private lazy var fileURL: URL = {
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = base.appendingPathComponent("EventLogger")
+        if !fm.fileExists(atPath: dir.path) {
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir.appendingPathComponent("retryAttempts.json")
+    }()
+
+    init() {
+        load()
+    }
+
+    func getAttempts(for key: String) -> Int {
+        var v = 0
+        queue.sync { v = cache[key] ?? 0 }
+        return v
+    }
+
+    func setAttempts(for key: String, attempts: Int) {
+        queue.async {
+            self.cache[key] = attempts
+            self.persist()
+        }
+    }
+
+    func clearAttempts(for key: String) {
+        queue.async {
+            self.cache.removeValue(forKey: key)
+            self.persist()
+        }
+    }
+
+    private func load() {
+        queue.sync {
+            guard let data = try? Data(contentsOf: fileURL) else { return }
+            if let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+                self.cache = decoded
+            }
+        }
+    }
+
+    private func persist() {
+        let data = try? JSONEncoder().encode(cache)
+        if let data { try? data.write(to: fileURL, options: .atomic) }
+    }
+}
 
     /// Delegate protocol for the EventNetworkManager to report back task completion.
 protocol EventNetworkManagerDelegate: AnyObject {
@@ -448,8 +819,8 @@ protocol EventNetworkManagerDelegate: AnyObject {
     ///
 class EventNetworkManager: NSObject, URLSessionTaskDelegate {
 
-        /// A unique identifier for our background session.
-    static let backgroundSessionIdentifier = "com.yourapp.eventLogger.backgroundSession"
+        /// A unique identifier for our background session (derived from EventLogger base)
+        static var backgroundSessionIdentifier: String = EventLogger.bundleBase + ".eventLogger.backgroundSession"
 
     weak var delegate: EventNetworkManagerDelegate?
 
@@ -463,7 +834,7 @@ class EventNetworkManager: NSObject, URLSessionTaskDelegate {
         /// A thread-safe dictionary to map a task identifier to the batch of events and the temp file URL it represents.
         /// [TaskIdentifier: (TempFileURL, EventsInBatch)]
     private var tasks = [Int: (URL, [Event])]()
-    private let tasksQueue = DispatchQueue(label: "com.yourapp.eventNetworkManager.tasksQueue")
+    private let tasksQueue = DispatchQueue(label: EventLogger.bundleBase + ".eventNetworkManager.tasksQueue")
 
         /// Stores the completion handler from the AppDelegate.
     var backgroundSessionCompletionHandler: (() -> Void)?
@@ -601,7 +972,7 @@ class NetworkMonitor {
 
     init() {
         self.monitor = NWPathMonitor()
-        self.queue = DispatchQueue(label: "com.yourapp.networkMonitorQueue")
+    self.queue = DispatchQueue(label: EventLogger.bundleBase + ".networkMonitorQueue")
     }
 
         /// Starts monitoring network path updates.
