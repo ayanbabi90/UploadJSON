@@ -1,0 +1,26 @@
+{
+  "aggregateRating": {
+    "ratingValue": 4.9,
+    "reviewCount": 34
+  },
+  "userReviews": [
+    {
+      "author": "Basabi Paul",
+      "datePublished": "2026-06-01",
+      "reviewRating": 5,
+      "reviewBody": "Khub clean and professional setup. Gold check korar por proper calculation dekhiyeche. Amar experience ta positive chilo and payment instantly receive korechi"
+    },
+    {
+      "author": "supriya chakrabortty",
+      "datePublished": "2026-06-01",
+      "reviewRating": 5,
+      "reviewBody": "Best part holo puro testing process ta customer-r samne hoy. Amar kache eta khub important mone hoyeche. Good value peyechi ebong service-o professional"
+    },
+    {
+      "author": "Niladri Ghosh",
+      "datePublished": "2026-06-01",
+      "reviewRating": 5,
+      "reviewBody": ""
+    }
+  ]
+}
