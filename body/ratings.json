@@ -1,20 +1,20 @@
 {
   "aggregateRating": {
     "ratingValue": 4.9,
-    "reviewCount": 38
+    "reviewCount": 39
   },
   "userReviews": [
+      {
+      "author": "Sajid Khan",
+      "datePublished": "2026-06-03",
+      "reviewRating": 5,
+      "reviewBody": "Process ta khub smooth chilo. Staff ra polite ebong cooperative. Gold rate niye clear explanation diyeche, tai confidence peyechilam. Overall very good service"
+    },
     {
       "author": "Souvik Dutta",
       "datePublished": "2026-06-02",
       "reviewRating": 5,
       "reviewBody": "Best gold buyer in durgapur valo dam dei gold er"
-    },
-    {
-      "author": "Anupam Samanta",
-      "datePublished": "2026-06-02",
-      "reviewRating": 5,
-      "reviewBody": "Got good valuation for my gold."
     }
   ]
 }
