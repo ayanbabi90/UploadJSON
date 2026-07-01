@@ -1,21 +1,19 @@
 {
   "aggregateRating": {
     "ratingValue": 5,
-    "reviewCount": 42
+    "reviewCount": 44
   },
   "userReviews": [
       {
-      "author": "Rohit Mukherjee",
-      "datePublished": "2026-06-10",
+      "author": "Aditi Kumari",
+      "datePublished": "2026-07-01",
       "reviewRating": 5,
-      "reviewBody": "Best place to sell gold in Durgapur!
-Visited their City Centre branch and was highly impressed by their professionalism. The testing process is 100% scientific and transparent, and they give much better rates compared to local jewellers. Fast service, friendly staff, and instant, secure bank payout...!"
-    },
+      "reviewBody": "Very professional and polite staff. The overall experience was very satisfying"
+      },
     {
-      "author": "Trisha Chatterjee",
-      "datePublished": "2026-06-08",
+      "author": "Dinesh Rajak",
+      "datePublished": "2026-07-01",
       "reviewRating": 5,
-      "reviewBody": "Auriksha te giye bhalo laglo. Kono unnecessary pressure chilo na. Staff ra friendly ebong honest mone hoyeche. Fair valuation and hassle-free process"
-    }
+      "reviewBody": "Very transparent and professional experience. The staff were very humble and polite and the rate was clear without any ambiguity"}
   ]
 }
