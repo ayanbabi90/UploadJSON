@@ -1,20 +1,20 @@
 {
   "aggregateRating": {
     "ratingValue": 5,
-    "reviewCount": 46
+    "reviewCount": 52
   },
   "userReviews": [
       {
-      "author": "Nivedita Banerjee",
-      "datePublished": "2026-07-05",
+      "author": "BIBEK DAS",
+      "datePublished": "2026-07-25",
       "reviewRating": 5,
-      "reviewBody": "Very good service..satisfied..best for emergencies."
+      "reviewBody": "Very good and fast service and all staff's behaviour very polite..."
       },
     {
-      "author": "LIMITED EDITION",
-      "datePublished": "2026-07-03",
+      "author": "Bhaskar Das",
+      "datePublished": "2026-07-16",
       "reviewRating": 5,
-      "reviewBody": "Great service"
+      "reviewBody": "Good service they help me to release my loan and give me leftover money back highly recommend"
     }
       ]
 }
