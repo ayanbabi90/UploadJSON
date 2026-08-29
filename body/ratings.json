@@ -1,20 +1,20 @@
 {
   "aggregateRating": {
     "ratingValue": 5,
-    "reviewCount": 52
+    "reviewCount": 66
   },
   "userReviews": [
       {
-      "author": "BIBEK DAS",
-      "datePublished": "2026-07-25",
+      "author": "Anubrata Sarkar",
+      "datePublished": "2026-08-25",
       "reviewRating": 5,
-      "reviewBody": "Very good and fast service and all staff's behaviour very polite..."
+      "reviewBody": "Excellent customer service and excellent behaviour."
       },
     {
       "author": "Bhaskar Das",
-      "datePublished": "2026-07-16",
+      "datePublished": "2026-07-21",
       "reviewRating": 5,
-      "reviewBody": "Good service they help me to release my loan and give me leftover money back highly recommend"
+      "reviewBody": ""
     }
       ]
 }
