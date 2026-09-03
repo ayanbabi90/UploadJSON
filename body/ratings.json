@@ -1,20 +1,20 @@
 {
   "aggregateRating": {
     "ratingValue": 5,
-    "reviewCount": 66
+    "reviewCount": 67
   },
   "userReviews": [
+    {
+      "author": "Subhodip Sanyal",
+      "datePublished": "2026-09-03",
+      "reviewRating": 5,
+      "reviewBody": "Very efficient and very nice behaviour of all. Got instantly paid. Paid the exact gold price and needless to say, I'm very impressed with Auriksha Gold."
+    },
       {
       "author": "Anubrata Sarkar",
       "datePublished": "2026-08-25",
       "reviewRating": 5,
       "reviewBody": "Excellent customer service and excellent behaviour."
-      },
-    {
-      "author": "Bhaskar Das",
-      "datePublished": "2026-07-21",
-      "reviewRating": 5,
-      "reviewBody": ""
-    }
+      }
       ]
 }
