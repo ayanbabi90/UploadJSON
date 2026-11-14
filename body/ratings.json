@@ -1,20 +1,20 @@
 {
   "aggregateRating": {
     "ratingValue": 5,
-    "reviewCount": 70
+    "reviewCount": 91
   },
   "userReviews": [
     {
-      "author": "utpal dhibar",
-      "datePublished": "2026-09-18",
+      "author": "Komal Kiran",
+      "datePublished": "2026-11-13",
       "reviewRating": 5,
-      "reviewBody": "Very professional service, no waiting no hassle, instant cash receive."
+      "reviewBody": ""
     },
       {
-      "author": "Nirmalya Pati",
-      "datePublished": "2026-09-17",
+      "author": "Paromita Ghosh",
+      "datePublished": "2026-11-12",
       "reviewRating": 5,
-      "reviewBody": "Very satisfied with the overall transperancy of the whole process. All testing and process has been done infront of me. No melting of metal required. Instant amount transfer. Very happy with the behaviour of the all the staffs. Will 100% recomend for the needful person."
+      "reviewBody": ""
       }
       ]
 }
