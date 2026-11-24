@@ -1,6 +1,6 @@
 {
   "durgapur_branch": {
-    "busnessPageData": {
+    "businessPageData": {
       "name": "Auriksha",
       "address": "Doctor's Colony, City Center, Durgapur, West Bengal 713216"
     },
@@ -26,7 +26,7 @@
     }
   },
   "barjora_branch": {
-    "busnessPageData": {
+    "businessPageData": {
       "name": "Auriksha Gold Buyer Barjora, Bankura",
       "address": "Address: College Rd, near Bank Of Boroda, Barjora, West Bengal 722202"
     },
