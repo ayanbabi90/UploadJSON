@@ -1,20 +1,54 @@
 {
-  "aggregateRating": {
-    "ratingValue": 5,
-    "reviewCount": 91
-  },
-  "userReviews": [
-    {
-      "author": "Komal Kiran",
-      "datePublished": "2026-11-13",
-      "reviewRating": 5,
-      "reviewBody": ""
+  "durgapur_branch": {
+    "busnessPageData": {
+      "name": "Auriksha",
+      "address": "Doctor's Colony, City Center, Durgapur, West Bengal 713216"
     },
-      {
-      "author": "Paromita Ghosh",
-      "datePublished": "2026-11-12",
-      "reviewRating": 5,
-      "reviewBody": ""
-      }
+    "ratingsData": {
+      "aggregateRating": {
+        "ratingValue": 5,
+        "reviewCount": 95
+      },
+      "userReviews": [
+        {
+          "author": "PRIYA HANSDA",
+          "datePublished": "2026-11-24",
+          "reviewRating": 5,
+          "reviewBody": "bhot achi service hai bhot staff behaviour v achi hai old gold sell krne ki liye best hai"
+        },
+        {
+          "author": "saswati deb",
+          "datePublished": "2026-11-12",
+          "reviewRating": 5,
+          "reviewBody": "Excellent service.... very prompt and behaviour exceptionally good"
+        }
       ]
+    }
+  },
+  "barjora_branch": {
+    "busnessPageData": {
+      "name": "Auriksha Gold Buyer Barjora, Bankura",
+      "address": "Address: College Rd, near Bank Of Boroda, Barjora, West Bengal 722202"
+    },
+    "ratingsData": {
+      "aggregateRating": {
+        "ratingValue": 5,
+        "reviewCount": 14
+      },
+      "userReviews": [
+        {
+          "author": "PRIYA HANSDA",
+          "datePublished": "2026-11-24",
+          "reviewRating": 5,
+          "reviewBody": "bhot achi service hai bhot staff behaviour v achi hai old gold sell krne ki liye best hai"
+        },
+        {
+          "author": "Tumpa Das",
+          "datePublished": "2026-11-12",
+          "reviewRating": 5,
+          "reviewBody": "very good service I visited also there durgapur Branch far better than the local gold buyers must recommended ☺️ I THINK IT'S NOT BETTER IT'S THE BEST."
+        }
+      ]
+    }
+  }
 }
